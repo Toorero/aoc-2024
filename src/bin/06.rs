@@ -291,6 +291,7 @@ impl<C: Obstructed + Bounded> StepStrategy for SimpleStepPattern<C> {
 fn charvise(input: &str) -> Vec<Vec<char>> {
     input.lines().map(|line| line.chars().collect()).collect()
 }
+
 fn parse_area(input: &str) -> (Area, Vec<Guard>) {
     let lines = charvise(input);
 
