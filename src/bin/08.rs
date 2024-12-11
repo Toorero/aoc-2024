@@ -4,6 +4,7 @@ use std::iter;
 use std::str::FromStr;
 use std::usize;
 
+use itertools::Itertools;
 use lina::{Point2, Vec2};
 
 type Coord = Point2<isize>;
@@ -125,53 +126,45 @@ impl Antenna {
 #[derive(Debug)]
 pub struct AntennaArray<const WIDTH: usize, const HEIGHT: usize> {
     antennas_per_freq: HashMap<Frequency, Vec<Coord>>,
-    antennas: [[bool; WIDTH]; HEIGHT],
 }
 
 impl<const WIDTH: usize, const HEIGHT: usize> AntennaArray<WIDTH, HEIGHT> {
-    pub fn antinotes(&self, bounces: usize) -> HashSet<Coord> {
+    pub fn antinodes(&self, bounces: usize) -> HashSet<Coord> {
         self.antennas_per_freq
             .iter()
+            // calculate antinodes per frequency and collect all positions frequency independent
             .flat_map(|(frequency, antenna_coords)| {
-                antenna_coords.iter().flat_map({
-                    // FIXME:avoid calculating duplicate antenna pairs
-                    move |coord_1| {
-                        antenna_coords
-                            .iter()
-                            .filter(move |coord_2| coord_1 != *coord_2)
-                            .flat_map(move |coord_2| {
-                                Antenna {
-                                    frequency: *frequency,
-                                    position: *coord_1,
-                                }
-                                .antinode(
-                                    &Antenna {
-                                        frequency: *frequency,
-                                        position: *coord_2,
-                                    },
-                                    bounces,
-                                )
-                                .map_while(|antinode| {
-                                    let pos = antinode.position;
-                                    let x: usize = pos[0].try_into().unwrap();
-                                    let y: usize = pos[1].try_into().unwrap();
-
-                                    // check out of bounds
-                                    if x < WIDTH && y < HEIGHT {
-                                        Some(pos)
-                                    } else {
-                                        None
-                                    }
-                                })
-                                //.filter(|pos| {
-                                //    // don't create antinode at antenna positions
-                                //    let x: usize = pos[0].try_into().unwrap();
-                                //    let y: usize = pos[1].try_into().unwrap();
-                                //    !self.antennas[y][x]
-                                //})
-                                .collect::<Vec<_>>()
-                            })
+                antenna_coords.iter().combinations(2).flat_map(move |c| {
+                    Antenna {
+                        frequency: *frequency,
+                        position: *c[0],
                     }
+                    .antinode(
+                        &Antenna {
+                            frequency: *frequency,
+                            position: *c[1],
+                        },
+                        bounces,
+                    )
+                    .map_while(|antinode| {
+                        let pos = antinode.position;
+                        let x: usize = pos[0].try_into().unwrap();
+                        let y: usize = pos[1].try_into().unwrap();
+
+                        // check out of bounds
+                        if x < WIDTH && y < HEIGHT {
+                            Some(pos)
+                        } else {
+                            None
+                        }
+                    })
+                    //.filter(|pos| {
+                    //    // don't create antinode at antenna positions
+                    //    let x: usize = pos[0].try_into().unwrap();
+                    //    let y: usize = pos[1].try_into().unwrap();
+                    //    !self.antennas[y][x]
+                    //})
+                    .collect::<Vec<_>>()
                 })
             })
             .collect()
@@ -184,7 +177,6 @@ impl<const WIDTH: usize, const HEIGHT: usize> FromIterator<Antenna>
     fn from_iter<T: IntoIterator<Item = Antenna>>(iter: T) -> Self {
         let iter = iter.into_iter();
 
-        let mut antennas = [[false; WIDTH]; HEIGHT];
         let mut antennas_per_freq: HashMap<Frequency, Vec<Coord>> =
             HashMap::with_capacity(iter.size_hint().0);
 
@@ -203,14 +195,9 @@ impl<const WIDTH: usize, const HEIGHT: usize> FromIterator<Antenna>
                 .entry(frequency)
                 .or_default()
                 .push(Coord::new(x as isize, y as isize));
-
-            antennas[y][x] = true;
         }
 
-        Self {
-            antennas_per_freq,
-            antennas,
-        }
+        Self { antennas_per_freq }
     }
 }
 
@@ -250,8 +237,7 @@ fn __part_one<const WIDTH: usize, const HEIGHT: usize>(input: &str) -> Option<us
 fn part<const WIDTH: usize, const HEIGHT: usize>(input: &str, bounces: usize) -> Option<usize> {
     let arr = AntennaArray::<WIDTH, HEIGHT>::from_str(input).unwrap();
 
-    let antinodes = arr.antinotes(bounces);
-
+    let antinodes = arr.antinodes(bounces);
     let count = antinodes.len();
 
     let mut lines = charvise(input);
